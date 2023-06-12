@@ -1,11 +1,11 @@
 package main
 
 import (
-	"errors"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -29,52 +29,56 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = recieveFile(w, r, "code", "files/sandbox/", true); err != nil {
+	var codeFileName string
+	var outputFileName string
+
+	if codeFileName, err = recieveFile(w, r, "code", "files/sandbox/", true); err != nil {
 		log.Println(err)
 		return
 	}
 
-	if err = recieveFile(w, r, "input", "files/sandbox/", false); err != nil {
+	if _, err = recieveFile(w, r, "input", "files/sandbox/", false); err != nil {
 		log.Println(err)
 		return
 	}
 
-	if err = recieveFile(w, r, "output", "files/", true); err != nil {
+	if outputFileName, err = recieveFile(w, r, "output", "files/", true); err != nil {
 		log.Println(err)
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	compileOutput, _ := compileCode(codeFileName, outputFileName)
+	w.Write(([]byte)(compileOutput))
 }
 
-func recieveFile(w http.ResponseWriter, r *http.Request, name string, directory string, required bool) error {
+func compileCode(codeFileName string, outputFileName string) (string, bool) {
+	out, err := exec.Command("javac", "files/sandbox/"+codeFileName).CombinedOutput()
+	return string(out), err == nil
+}
+
+func recieveFile(w http.ResponseWriter, r *http.Request, name string, directory string, required bool) (string, error) {
 	file, handler, err := r.FormFile(name)
 	if err != nil {
 		if !required {
-			return nil
+			return "", nil
 		}
 
 		http.Error(w, "Expected "+name+" file", http.StatusBadRequest)
-		return err
+		return "", err
 	}
 	defer file.Close()
-
-	if name == "code" && !strings.HasSuffix(handler.Filename, ".java") {
-		http.Error(w, "Code needs to be a java file", http.StatusBadRequest)
-		return errors.New("Provided non-java code file")
-	}
 
 	destination, err := os.Create(directory + handler.Filename)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return err
+		return "", err
 	}
 	defer destination.Close()
 
 	if _, err := io.Copy(destination, file); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return err
+		return "", err
 	}
 
-	return nil
+	return handler.Filename, nil
 }
