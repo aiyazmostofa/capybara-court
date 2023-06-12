@@ -1,0 +1,6 @@
+* Capybara Court
+A docker image that can safely run and judge the output of untrusted Java code.
+The project is WIP.
+
+** License
+[[file:LICENSE][GNU General Public License v3.0]]
