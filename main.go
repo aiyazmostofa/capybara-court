@@ -75,7 +75,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func compileCode(codeFileName string) (string, bool) {
 	out, err := exec.Command(
-		APP_DIRECTORY+"dependencies/jdk/bin/javac",
+		APP_DIRECTORY+"jdk/bin/javac",
 		APP_DIRECTORY+"files/sandbox/"+codeFileName,
 		"-Xlint:unchecked").CombinedOutput()
 	return string(out), err == nil
@@ -88,7 +88,7 @@ func runCode(codeFileName string) (string, bool) {
 		"firejail",
 		"--profile="+APP_DIRECTORY+"/firejail.cfg",
 		"--quiet",
-		APP_DIRECTORY+"dependencies/jdk/bin/java",
+		APP_DIRECTORY+"jdk/bin/java",
 		string(codeFileName[0:strings.LastIndex(codeFileName, ".")]))
 
 	cmd.Dir = APP_DIRECTORY + "files/sandbox"
