@@ -83,8 +83,14 @@ func compileCode(codeFileName string) (string, bool) {
 
 func runCode(codeFileName string) (string, bool) {
 	cmd := exec.Command(
+		"timeout",
+		"10",
+		"firejail",
+		"--profile="+APP_DIRECTORY+"/firejail.cfg",
+		"--quiet",
 		APP_DIRECTORY+"dependencies/jdk/bin/java",
 		string(codeFileName[0:strings.LastIndex(codeFileName, ".")]))
+
 	cmd.Dir = APP_DIRECTORY + "files/sandbox"
 	out, err := cmd.CombinedOutput()
 	return string(out), err == nil
