@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -8,8 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
-
 type submissionResult struct {
 	Status        string `json:"status"`
 	CompileOutput string `json:"compileOutput"`
@@ -25,8 +26,8 @@ func main() {
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	var err error
-	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
-	if err = r.ParseMultipartForm(5 << 20); err != nil {
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+	if err = r.ParseMultipartForm(10 << 20); err != nil {
 		log.Println(err)
 		var errOutput string
 		if strings.Contains(err.Error(), "large") {
@@ -82,9 +83,15 @@ func compileCode(codeFileName string) (string, bool) {
 }
 
 func runCode(codeFileName string) (string, bool) {
-	cmd := exec.Command(
-		"timeout",
-		"10",
+	timeout := 10
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(ctx,
 		"firejail",
 		"--profile="+APP_DIRECTORY+"/firejail.cfg",
 		"--quiet",
