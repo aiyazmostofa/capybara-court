@@ -19,11 +19,11 @@ type submissionResult struct {
 const APP_DIRECTORY = "/home/aiyaz/Repositories/capybara-court/"
 
 func main() {
-	http.HandleFunc("/", postHandler)
+	http.HandleFunc("/", handler)
 	log.Fatalln(http.ListenAndServe(":8080", nil))
 }
 
-func postHandler(w http.ResponseWriter, r *http.Request) {
+func handler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
 	if err = r.ParseMultipartForm(5 << 20); err != nil {
@@ -39,7 +39,6 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var codeFileName string
-	var outputFileName string
 
 	if codeFileName, err = recieveFile(w, r, "code", "files/sandbox/", true); err != nil {
 		log.Println(err)
@@ -51,12 +50,12 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if outputFileName, err = recieveFile(w, r, "output", "files/", true); err != nil {
+	if _, err = recieveFile(w, r, "output", "files/", true); err != nil {
 		log.Println(err)
 		return
 	}
 
-	compileOutput, compileStatus := compileCode(codeFileName, outputFileName)
+	compileOutput, compileStatus := compileCode(codeFileName)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -65,14 +64,29 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_ERROR", compileOutput, ""})
 		return
 	}
-	json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_SUCCESS", compileOutput, ""})
+
+	runtimeOutput, runtimeStatus := runCode(codeFileName)
+	if !runtimeStatus {
+		json.NewEncoder(w).Encode(submissionResult{"RUNTIME_ERROR", compileOutput, runtimeOutput})
+	} else {
+		json.NewEncoder(w).Encode(submissionResult{"RUNTIME_SUCCESS", compileOutput, runtimeOutput})
+	}
 }
 
-func compileCode(codeFileName string, outputFileName string) (string, bool) {
+func compileCode(codeFileName string) (string, bool) {
 	out, err := exec.Command(
-		APP_DIRECTORY + "dependencies/jdk/bin/javac",
-		APP_DIRECTORY + "files/sandbox/"+codeFileName,
+		APP_DIRECTORY+"dependencies/jdk/bin/javac",
+		APP_DIRECTORY+"files/sandbox/"+codeFileName,
 		"-Xlint:unchecked").CombinedOutput()
+	return string(out), err == nil
+}
+
+func runCode(codeFileName string) (string, bool) {
+	cmd := exec.Command(
+		APP_DIRECTORY+"dependencies/jdk/bin/java",
+		string(codeFileName[0:strings.LastIndex(codeFileName, ".")]))
+	cmd.Dir = APP_DIRECTORY + "files/sandbox"
+	out, err := cmd.CombinedOutput()
 	return string(out), err == nil
 }
 
