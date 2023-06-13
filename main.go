@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -8,6 +9,14 @@ import (
 	"os/exec"
 	"strings"
 )
+
+type submissionResult struct {
+	Status        string `json:"status"`
+	CompileOutput string `json:"compileOutput"`
+	RuntimeOutput string `json:"runtimeOutput"`
+}
+
+const APP_DIRECTORY = "/home/aiyaz/Repositories/capybara-court/"
 
 func main() {
 	http.HandleFunc("/", postHandler)
@@ -47,12 +56,23 @@ func postHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	compileOutput, _ := compileCode(codeFileName, outputFileName)
-	w.Write(([]byte)(compileOutput))
+	compileOutput, compileStatus := compileCode(codeFileName, outputFileName)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if !compileStatus {
+		json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_ERROR", compileOutput, ""})
+		return
+	}
+	json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_SUCCESS", compileOutput, ""})
 }
 
 func compileCode(codeFileName string, outputFileName string) (string, bool) {
-	out, err := exec.Command("javac", "files/sandbox/"+codeFileName).CombinedOutput()
+	out, err := exec.Command(
+		APP_DIRECTORY + "dependencies/jdk/bin/javac",
+		APP_DIRECTORY + "files/sandbox/"+codeFileName,
+		"-Xlint:unchecked").CombinedOutput()
 	return string(out), err == nil
 }
 
