@@ -18,7 +18,7 @@ type submissionResult struct {
 	RuntimeOutput string `json:"runtimeOutput"`
 }
 
-const APP_DIRECTORY = "/home/aiyaz/Repositories/capybara-court"
+const APP_DIRECTORY = "/production"
 const TIMEOUT = 10
 
 func main() {
@@ -89,9 +89,6 @@ func runCode(codeFileName string) (string, string) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx,
-		"firejail",
-		"--profile="+APP_DIRECTORY+"/firejail.cfg",
-		"--quiet",
 		APP_DIRECTORY+"/jdk/bin/java",
 		string(codeFileName[0:strings.LastIndex(codeFileName, ".")]))
 
