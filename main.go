@@ -18,7 +18,8 @@ type submissionResult struct {
 	RuntimeOutput string `json:"runtimeOutput"`
 }
 
-const APP_DIRECTORY = "/home/aiyaz/Repositories/capybara-court/"
+const APP_DIRECTORY = "/home/aiyaz/Repositories/capybara-court"
+const TIMEOUT = 10
 
 func main() {
 	http.HandleFunc("/", handler)
@@ -26,6 +27,11 @@ func main() {
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Request body needs to be POST", http.StatusMethodNotAllowed)
+		return
+	}
+
 	var err error
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	if err = r.ParseMultipartForm(10 << 20); err != nil {
@@ -73,24 +79,24 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 func compileCode(codeFileName string) (string, bool) {
 	out, err := exec.Command(
-		APP_DIRECTORY+"jdk/bin/javac",
-		APP_DIRECTORY+"files/sandbox/"+codeFileName,
+		APP_DIRECTORY+"/jdk/bin/javac",
+		APP_DIRECTORY+"/files/sandbox/"+codeFileName,
 		"-Xlint:unchecked").CombinedOutput()
 	return string(out), err == nil
 }
 
 func runCode(codeFileName string) (string, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(10)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIMEOUT)*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx,
 		"firejail",
 		"--profile="+APP_DIRECTORY+"/firejail.cfg",
 		"--quiet",
-		APP_DIRECTORY+"jdk/bin/java",
+		APP_DIRECTORY+"/jdk/bin/java",
 		string(codeFileName[0:strings.LastIndex(codeFileName, ".")]))
 
-	cmd.Dir = APP_DIRECTORY + "files/sandbox"
+	cmd.Dir = APP_DIRECTORY + "/files/sandbox"
 	out, err := cmd.CombinedOutput()
 
 	if ctx.Err() == context.DeadlineExceeded {
@@ -118,12 +124,14 @@ func recieveFile(w http.ResponseWriter, r *http.Request, name string, directory 
 
 	destination, err := os.Create(directory + handler.Filename)
 	if err != nil {
+		log.Println("Unable to create file or directory")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return "", err
 	}
 	defer destination.Close()
 
 	if _, err := io.Copy(destination, file); err != nil {
+		log.Println("Unable to copy file")
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return "", err
 	}
