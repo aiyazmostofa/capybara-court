@@ -35,7 +35,6 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	var err error
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	if err = r.ParseMultipartForm(10 << 20); err != nil {
-		log.Println(err)
 		var errOutput string
 		if strings.Contains(err.Error(), "large") {
 			errOutput = "Request body too large"
