@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 )
+
 type submissionResult struct {
 	Status        string `json:"status"`
 	CompileOutput string `json:"compileOutput"`
@@ -67,11 +68,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	runtimeOutput, runtimeStatus := runCode(codeFileName)
-	if !runtimeStatus {
-		json.NewEncoder(w).Encode(submissionResult{"RUNTIME_ERROR", compileOutput, runtimeOutput})
-	} else {
-		json.NewEncoder(w).Encode(submissionResult{"RUNTIME_SUCCESS", compileOutput, runtimeOutput})
-	}
+	json.NewEncoder(w).Encode(submissionResult{runtimeStatus, compileOutput, runtimeOutput})
 }
 
 func compileCode(codeFileName string) (string, bool) {
@@ -82,14 +79,9 @@ func compileCode(codeFileName string) (string, bool) {
 	return string(out), err == nil
 }
 
-func runCode(codeFileName string) (string, bool) {
-	timeout := 10
-	ctx := context.Background()
-	if timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
-		defer cancel()
-	}
+func runCode(codeFileName string) (string, string) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(10)*time.Second)
+	defer cancel()
 
 	cmd := exec.CommandContext(ctx,
 		"firejail",
@@ -100,7 +92,16 @@ func runCode(codeFileName string) (string, bool) {
 
 	cmd.Dir = APP_DIRECTORY + "files/sandbox"
 	out, err := cmd.CombinedOutput()
-	return string(out), err == nil
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return string(out), "TIME_LIMIT_EXCEEDED"
+	} else {
+		if err == nil {
+			return string(out), "RUN_TIME_SUCCESS"
+		} else {
+			return string(out), "RUN_TIME_ERROR"
+		}
+	}
 }
 
 func recieveFile(w http.ResponseWriter, r *http.Request, name string, directory string, required bool) (string, error) {
