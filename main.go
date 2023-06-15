@@ -49,6 +49,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Recieve user code
 	var codeBytes []byte
 	var codeFileName string
 
@@ -61,84 +62,88 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var inputBytes []byte
-	var inputFileName string
+	// Recieve sample input
+	var sampleInputBytes []byte
+	var sampleInputFileName string
 
-	if inputBytes, inputFileName, err = readMultipartFile(w, r, "input", false); err == nil {
-		if err = os.WriteFile(RUN_DIRECTORY+inputFileName, inputBytes, 0644); err != nil {
+	if sampleInputBytes, sampleInputFileName, err = readMultipartFile(w, r, "input", false); err == nil {
+		if err = os.WriteFile(RUN_DIRECTORY+sampleInputFileName, sampleInputBytes, 0644); err != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 	}
 
-	var outputBytes []byte
-	if outputBytes, _, err = readMultipartFile(w, r, "output", true); err != nil {
+	// Recieve sample output
+	var sampleOutputBytes []byte
+	if sampleOutputBytes, _, err = readMultipartFile(w, r, "output", true); err != nil {
 		return
 	}
 
-	outputStringList := strings.Split(string(outputBytes), "\n")
-	outputStringList = formatStringList(outputStringList)
+	sampleOutputList := strings.Split(string(sampleOutputBytes), "\n")
+	sampleOutputList = formatOutput(sampleOutputList)
 
+	// Everything is now ready, add OK status
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	compileOutput, compileStatus := compileCode(codeFileName)
+	// Compile code
+	compileOutputBytes, compileStatus := compileCode(codeFileName)
 	if !compileStatus {
-		json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_ERROR", string(compileOutput), ""})
+		json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_ERROR", string(compileOutputBytes), ""})
 		return
 	}
 
-	runtimeBytes, runtimeStatus := runCode(codeFileName)
-	runtimeStringList := strings.Split(string(runtimeBytes), "\n")
-	runtimeStringList = formatStringList(runtimeStringList)
+	// Run code
+	codeOutputBytes, runtimeStatus := runCode(codeFileName)
+	codeOutputList := strings.Split(string(codeOutputBytes), "\n")
+	codeOutputList = formatOutput(codeOutputList)
 
 	if runtimeStatus != "RUN_TIME_FINISHED" {
-		json.NewEncoder(w).Encode(submissionResult{runtimeStatus, string(compileOutput), string(runtimeBytes)})
-		return
+		json.NewEncoder(w).Encode(submissionResult{runtimeStatus, string(compileOutputBytes), string(codeOutputBytes)})
+	} else {
+		json.NewEncoder(w).Encode(submissionResult{judge(codeOutputList, sampleOutputList), string(compileOutputBytes), string(codeOutputBytes)})
 	}
-
-	if len(runtimeStringList) != len(outputStringList) {
-		json.NewEncoder(w).Encode(submissionResult{"WRONG_ANSWER", string(compileOutput), string(runtimeBytes)})
-		return
-	}
-
-	for i := 0; i < len(outputStringList); i++ {
-		if outputStringList[i] != runtimeStringList[i] {
-			json.NewEncoder(w).Encode(submissionResult{"WRONG_ANSWER", string(compileOutput), string(runtimeBytes)})
-			return
-		}
-	}
-
-	json.NewEncoder(w).Encode(submissionResult{"CORRECT_ANSWER", string(compileOutput), string(runtimeBytes)})
-	return
 }
 
-func formatStringList(stringList []string) []string {
+func judge(codeOutputList []string, sampleOutputList []string) string {
+	if len(codeOutputList) != len(sampleOutputList) {
+		return "WRONG_ANSWER"
+	}
+
+	for i := 0; i < len(codeOutputList); i++ {
+		if codeOutputList[i] != sampleOutputList[i] {
+			return "WRONG_ANSWER"
+		}
+	}
+	return "CORRECT_ANSWER"
+}
+
+func formatOutput(outputList []string) []string {
 	for {
-		if len(stringList) == 0 || !isWhiteSpaceOnly(stringList[0]) {
+		if len(outputList) == 0 || !containsOnlyWhitespace(outputList[0]) {
 			break
 		}
 
-		stringList = stringList[1:]
+		outputList = outputList[1:]
 	}
 
 	for {
-		if len(stringList) == 0 || !isWhiteSpaceOnly(stringList[len(stringList)-1]) {
+		if len(outputList) == 0 || !containsOnlyWhitespace(outputList[len(outputList)-1]) {
 			break
 		}
-		stringList = stringList[:len(stringList)-1]
+		outputList = outputList[:len(outputList)-1]
 	}
 
-	for index, str := range stringList {
-		stringList[index] = strings.TrimRightFunc(str, func(r rune) bool {
+	for index, line := range outputList {
+		outputList[index] = strings.TrimRightFunc(line, func(r rune) bool {
 			return unicode.IsSpace(r)
 		})
 	}
 
-	return stringList
+	return outputList
 }
 
-func isWhiteSpaceOnly(str string) bool {
+func containsOnlyWhitespace(str string) bool {
 	for _, c := range str {
 		if !unicode.IsSpace(c) {
 			return false
