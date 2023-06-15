@@ -2,11 +2,6 @@
 A docker image that can safely run and judge the output of untrusted Java code.
 
 ** Things to Work On
-- Implementing a good-enough sandbox
-  - Disable network access for Java
-  - Limit the number of processes a sandboxed user can create
-  - Limit memory usage to prevent overload
-  - Disable a large portion of the filesystem (this is possibly optional)
 - Handling large http responses (say a user prints as much as possible in the time limit)
 - Proper documentation (code explanation, tutorials for Docker and serverless deployments, API)
 - Terraform???

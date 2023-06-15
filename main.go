@@ -185,10 +185,26 @@ func runCode(codeFileName string) ([]byte, string) {
 
 	cmd := exec.CommandContext(ctx,
 		JAVA_DIRECTORY+"java",
+		"-Djava.security.manager",
 		string(codeFileName[0:strings.LastIndex(codeFileName, ".")]))
 
 	cmd.Dir = RUN_DIRECTORY
 	out, err := cmd.CombinedOutput()
+
+	// Remove annoying security manager message
+	index := 0
+	count := 2
+	for {
+		if index == len(out) || count == 0 {
+			break
+		}
+
+		if out[index] == '\n' {
+			count--
+		}
+		index++
+	}
+	out = out[index:]
 
 	if ctx.Err() == context.DeadlineExceeded {
 		return out, "TIME_LIMIT_EXCEEDED"
