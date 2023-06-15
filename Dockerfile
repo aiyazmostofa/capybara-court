@@ -14,6 +14,5 @@ RUN mkdir production
 WORKDIR /production
 COPY --from=GO_BUILDER /build/app app
 COPY --from=JDK_BUILDER /jdk jdk
-RUN mkdir sandbox
 EXPOSE 8080
 CMD ["./app"]

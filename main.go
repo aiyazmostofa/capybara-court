@@ -20,7 +20,7 @@ type submissionResult struct {
 	RuntimeOutput string `json:"runtimeOutput"`
 }
 
-const RUN_DIRECTORY = "/production/sandbox/"
+const PRODUCTION_DIRECTORY = "/production/"
 const JAVA_DIRECTORY = "/production/jdk/bin/"
 const TIMEOUT = 10
 
@@ -36,6 +36,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
+
+	directory, err := os.MkdirTemp("", "sandbox-*")
+	defer os.RemoveAll(directory)
 
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	if err = r.ParseMultipartForm(10 << 20); err != nil {
@@ -57,7 +60,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = os.WriteFile(RUN_DIRECTORY+codeFileName, codeBytes, 0644); err != nil {
+	if err = os.WriteFile(directory+"/"+codeFileName, codeBytes, 0644); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -67,7 +70,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	var sampleInputFileName string
 
 	if sampleInputBytes, sampleInputFileName, err = readMultipartFile(w, r, "input", false); err == nil {
-		if err = os.WriteFile(RUN_DIRECTORY+sampleInputFileName, sampleInputBytes, 0644); err != nil {
+		if err = os.WriteFile(directory+"/"+sampleInputFileName, sampleInputBytes, 0644); err != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -87,14 +90,14 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	// Compile code
-	compileOutputBytes, compileStatus := compileCode(codeFileName)
+	compileOutputBytes, compileStatus := compileCode(directory + "/" + codeFileName)
 	if !compileStatus {
 		json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_ERROR", string(compileOutputBytes), ""})
 		return
 	}
 
 	// Run code
-	codeOutputBytes, runtimeStatus := runCode(codeFileName)
+	codeOutputBytes, runtimeStatus := runCode(codeFileName, directory)
 	codeOutputList := strings.Split(string(codeOutputBytes), "\n")
 	codeOutputList = formatOutput(codeOutputList)
 
@@ -171,15 +174,15 @@ func readMultipartFile(w http.ResponseWriter, r *http.Request, name string, requ
 	return buffer.Bytes(), handler.Filename, nil
 }
 
-func compileCode(codeFileName string) ([]byte, bool) {
+func compileCode(codeFilePath string) ([]byte, bool) {
 	out, err := exec.Command(
 		JAVA_DIRECTORY+"javac",
-		RUN_DIRECTORY+codeFileName,
+		codeFilePath,
 		"-Xlint:unchecked").CombinedOutput()
 	return out, err == nil
 }
 
-func runCode(codeFileName string) ([]byte, string) {
+func runCode(codeFileName string, directory string) ([]byte, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIMEOUT)*time.Second)
 	defer cancel()
 
@@ -188,7 +191,7 @@ func runCode(codeFileName string) ([]byte, string) {
 		"-Djava.security.manager",
 		string(codeFileName[0:strings.LastIndex(codeFileName, ".")]))
 
-	cmd.Dir = RUN_DIRECTORY
+	cmd.Dir = directory
 	out, err := cmd.CombinedOutput()
 
 	// Remove annoying security manager message
