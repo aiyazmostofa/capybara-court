@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"unicode"
 )
 
 type submissionResult struct {
@@ -18,7 +20,8 @@ type submissionResult struct {
 	RuntimeOutput string `json:"runtimeOutput"`
 }
 
-const APP_DIRECTORY = "/production"
+const RUN_DIRECTORY = "/production/sandbox/"
+const JAVA_DIRECTORY = "/production/jdk/bin/"
 const TIMEOUT = 10
 
 func main() {
@@ -33,6 +36,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
+
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	if err = r.ParseMultipartForm(10 << 20); err != nil {
 		var errOutput string
@@ -45,92 +49,149 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var codeBytes []byte
 	var codeFileName string
 
-	if codeFileName, err = recieveFile(w, r, "code", "files/sandbox/", true); err != nil {
-		log.Println(err)
+	if codeBytes, codeFileName, err = readMultipartFile(w, r, "code", true); err != nil {
 		return
 	}
 
-	if _, err = recieveFile(w, r, "input", "files/sandbox/", false); err != nil {
-		log.Println(err)
+	if err = os.WriteFile(RUN_DIRECTORY+codeFileName, codeBytes, 0644); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
-	if _, err = recieveFile(w, r, "output", "files/", true); err != nil {
-		log.Println(err)
+	var inputBytes []byte
+	var inputFileName string
+
+	if inputBytes, inputFileName, err = readMultipartFile(w, r, "input", false); err == nil {
+		if err = os.WriteFile(RUN_DIRECTORY+inputFileName, inputBytes, 0644); err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	var outputBytes []byte
+	if outputBytes, _, err = readMultipartFile(w, r, "output", true); err != nil {
 		return
 	}
 
-	compileOutput, compileStatus := compileCode(codeFileName)
+	outputStringList := strings.Split(string(outputBytes), "\n")
+	outputStringList = formatStringList(outputStringList)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
+	compileOutput, compileStatus := compileCode(codeFileName)
 	if !compileStatus {
-		json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_ERROR", compileOutput, ""})
+		json.NewEncoder(w).Encode(submissionResult{"COMPILE_TIME_ERROR", string(compileOutput), ""})
 		return
 	}
 
-	runtimeOutput, runtimeStatus := runCode(codeFileName)
-	json.NewEncoder(w).Encode(submissionResult{runtimeStatus, compileOutput, runtimeOutput})
+	runtimeBytes, runtimeStatus := runCode(codeFileName)
+	runtimeStringList := strings.Split(string(runtimeBytes), "\n")
+	runtimeStringList = formatStringList(runtimeStringList)
+
+	if runtimeStatus != "RUN_TIME_FINISHED" {
+		json.NewEncoder(w).Encode(submissionResult{runtimeStatus, string(compileOutput), string(runtimeBytes)})
+		return
+	}
+
+	if len(runtimeStringList) != len(outputStringList) {
+		json.NewEncoder(w).Encode(submissionResult{"WRONG_ANSWER", string(compileOutput), string(runtimeBytes)})
+		return
+	}
+
+	for i := 0; i < len(outputStringList); i++ {
+		if outputStringList[i] != runtimeStringList[i] {
+			json.NewEncoder(w).Encode(submissionResult{"WRONG_ANSWER", string(compileOutput), string(runtimeBytes)})
+			return
+		}
+	}
+
+	json.NewEncoder(w).Encode(submissionResult{"CORRECT_ANSWER", string(compileOutput), string(runtimeBytes)})
+	return
 }
 
-func compileCode(codeFileName string) (string, bool) {
+func formatStringList(stringList []string) []string {
+	for {
+		if len(stringList) == 0 || !isWhiteSpaceOnly(stringList[0]) {
+			break
+		}
+
+		stringList = stringList[1:]
+	}
+
+	for {
+		if len(stringList) == 0 || !isWhiteSpaceOnly(stringList[len(stringList)-1]) {
+			break
+		}
+		stringList = stringList[:len(stringList)-1]
+	}
+
+	for index, str := range stringList {
+		stringList[index] = strings.TrimRightFunc(str, func(r rune) bool {
+			return unicode.IsSpace(r)
+		})
+	}
+
+	return stringList
+}
+
+func isWhiteSpaceOnly(str string) bool {
+	for _, c := range str {
+		if !unicode.IsSpace(c) {
+			return false
+		}
+	}
+	return true
+}
+
+func readMultipartFile(w http.ResponseWriter, r *http.Request, name string, required bool) ([]byte, string, error) {
+	file, handler, err := r.FormFile(name)
+	if err != nil {
+		if required {
+			http.Error(w, "Requires "+name+" file", http.StatusBadRequest)
+		}
+		return nil, "", err
+	}
+
+	defer file.Close()
+	buffer := bytes.NewBuffer(nil)
+	if _, err := io.Copy(buffer, file); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return nil, "", err
+	}
+
+	return buffer.Bytes(), handler.Filename, nil
+}
+
+func compileCode(codeFileName string) ([]byte, bool) {
 	out, err := exec.Command(
-		APP_DIRECTORY+"/jdk/bin/javac",
-		APP_DIRECTORY+"/files/sandbox/"+codeFileName,
+		JAVA_DIRECTORY+"javac",
+		RUN_DIRECTORY+codeFileName,
 		"-Xlint:unchecked").CombinedOutput()
-	return string(out), err == nil
+	return out, err == nil
 }
 
-func runCode(codeFileName string) (string, string) {
+func runCode(codeFileName string) ([]byte, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIMEOUT)*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx,
-		APP_DIRECTORY+"/jdk/bin/java",
+		JAVA_DIRECTORY+"java",
 		string(codeFileName[0:strings.LastIndex(codeFileName, ".")]))
 
-	cmd.Dir = APP_DIRECTORY + "/files/sandbox"
+	cmd.Dir = RUN_DIRECTORY
 	out, err := cmd.CombinedOutput()
 
 	if ctx.Err() == context.DeadlineExceeded {
-		return string(out), "TIME_LIMIT_EXCEEDED"
+		return out, "TIME_LIMIT_EXCEEDED"
 	} else {
 		if err == nil {
-			return string(out), "RUN_TIME_SUCCESS"
+			return out, "RUN_TIME_FINISHED"
 		} else {
-			return string(out), "RUN_TIME_ERROR"
+			return out, "RUN_TIME_ERROR"
 		}
 	}
-}
-
-func recieveFile(w http.ResponseWriter, r *http.Request, name string, directory string, required bool) (string, error) {
-	file, handler, err := r.FormFile(name)
-	if err != nil {
-		if !required {
-			return "", nil
-		}
-
-		http.Error(w, "Expected "+name+" file", http.StatusBadRequest)
-		return "", err
-	}
-	defer file.Close()
-
-	destination, err := os.Create(directory + handler.Filename)
-	if err != nil {
-		log.Println("Unable to create file or directory")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return "", err
-	}
-	defer destination.Close()
-
-	if _, err := io.Copy(destination, file); err != nil {
-		log.Println("Unable to copy file")
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return "", err
-	}
-
-	return handler.Filename, nil
 }
