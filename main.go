@@ -20,7 +20,6 @@ type submissionResult struct {
 	RuntimeOutput string `json:"runtimeOutput"`
 }
 
-const PRODUCTION_DIRECTORY = "/production/"
 const JAVA_DIRECTORY = "/production/jdk/bin/"
 const TIMEOUT = 10
 
