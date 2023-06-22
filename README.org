@@ -18,7 +18,7 @@ Make a POST request to =/= consisting of the following multipart form:
 | =input=             | file | A sample input file.  |
 | =output= (required) | file | A sample output file. |
 
-If you recieve a status code 200, that means the code has been judged, and you will recieve a JSON object with these key-value pairs:
+If you receive a status code 200, that means the code has been judged, and you will receive a JSON object with these key-value pairs:
 | Key             | Value Type | Description                                                 |
 |-----------------+------------+-------------------------------------------------------------|
 | =status=        | string     | The judgement status (statuses described below).            |
@@ -32,7 +32,7 @@ Here are the possible statuses:
 | =TIME_LIMIT_EXCEEDED= | The code did not run in the time limit (which is set to 10 seconds). |
 | =RUN_TIME_ERROR=      | The code exited with a run time error.                               |
 | =WRONG_ANSWER=        | The code's output did not match the sample output.                   |
-| =RIGHT_ANSWER=        | The code's output did match the sample output.                       |
+| =CORRECT_ANSWER= | The code's output did match the sample output.                       |
 
 ** Judging Algorithm
 To determine if two outputs are the same, the following algorithm is used.
