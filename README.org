@@ -1,11 +1,57 @@
 * Capybara Court
 A docker image that can safely run and judge the output of untrusted Java code.
 
-** Things to Work On
-- Handling large http responses (say a user prints as much as possible in the time limit)
-- Proper documentation (code explanation, tutorials for Docker and serverless deployments, API)
-- Terraform???
-- Improving judging performance
+** Deploying
+To deploy this image, a Docker compose file has been provided.
+Just run:
+#+BEGIN_SRC bash
+  docker compose up -d
+#+END_SRC
+The server currently runs on =localhost:8080=.
+Google Cloud and Terraform support will be added soon.
 
+** Usage
+Make a POST request to =/= consisting of the following multipart form:
+| Name                | Type | Description           |
+|---------------------+------+-----------------------|
+| =code= (required)   | file | A Java file.          |
+| =input=             | file | A sample input file.  |
+| =output= (required) | file | A sample output file. |
+
+If you recieve a status code 200, that means the code has been judged, and you will recieve a JSON object with these key-value pairs:
+| Key             | Value Type | Description                                                 |
+|-----------------+------------+-------------------------------------------------------------|
+| =status=        | string     | The judgement status (statuses described below).            |
+| =compileOutput= | string     | The output of the compiler, regardless of compiler success. |
+| =runtimeOutput= | string     | The output of the code, regardless of runtime success.      |
+
+Here are the possible statuses:
+| Status                | Description                                                          |
+|-----------------------+----------------------------------------------------------------------|
+| =COMPILE_TIME_ERROR=  | The code did not compile.                                            |
+| =TIME_LIMIT_EXCEEDED= | The code did not run in the time limit (which is set to 10 seconds). |
+| =RUN_TIME_ERROR=      | The code exited with a run time error.                               |
+| =WRONG_ANSWER=        | The code's output did not match the sample output.                   |
+| =RIGHT_ANSWER=        | The code's output did match the sample output.                       |
+
+** Judging Algorithm
+To determine if two outputs are the same, the following algorithm is used.
+
+For each output:
+- Split the output by =\n= to get each line in a string.
+- Remove all trailing or leading lines that are purely whitespace.
+- Remove all trailing whitespace in the rest of the lines.
+
+Then compare the formatted outputs.
+
+This algorithm tries to find a balance between formatting integrity and judging fairness.
+
+** Future: Things to Work On
+- Handling large http responses. For example, a user prints as much as possible in the time limit.
+- Improving judging performance.
+- Adding new settings and flags that make the container more flexible. Such as:
+  - A timeout setting.
+  - A setting for using System.in instead of file reading.
+    
 ** License
 [[file:LICENSE][GNU General Public License v3.0]]
