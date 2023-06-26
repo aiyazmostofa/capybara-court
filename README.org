@@ -50,9 +50,6 @@ This algorithm tries to find a balance between formatting integrity and judging 
 ** Future: Things to Work On
 - Handling large http responses. For example, a user prints as much as possible in the time limit.
 - Improving judging performance.
-- Adding new settings and flags that make the container more flexible. Such as:
-  - A timeout setting.
-  - A setting for using System.in instead of file reading.
     
 ** License
 [[file:LICENSE][GNU General Public License v3.0]]
