@@ -12,11 +12,12 @@ Google Cloud and Terraform support will be added soon.
 
 ** Usage
 Make a POST request to =/= consisting of the following multipart form:
-| Name                | Type | Description           |
-|---------------------+------+-----------------------|
-| =code= (required)   | file | A Java file.          |
-| =input=             | file | A sample input file.  |
-| =output= (required) | file | A sample output file. |
+| Name                | Type | Description                                     |
+|---------------------+------+-------------------------------------------------|
+| =code= (required)   | file | A Java file.                                    |
+| =input=             | file | A sample input file.                            |
+| =timeout=           | int  | The timeout in seconds (default is 10 seconds). |
+| =output= (required) | file | A sample output file.                           |
 
 If you receive a status code 200, that means the code has been judged, and you will receive a JSON object with these key-value pairs:
 | Key             | Value Type | Description                                                 |
@@ -26,13 +27,13 @@ If you receive a status code 200, that means the code has been judged, and you w
 | =runtimeOutput= | string     | The output of the code, regardless of runtime success.      |
 
 Here are the possible statuses:
-| Status                | Description                                                          |
-|-----------------------+----------------------------------------------------------------------|
-| =COMPILE_TIME_ERROR=  | The code did not compile.                                            |
-| =TIME_LIMIT_EXCEEDED= | The code did not run in the time limit (which is set to 10 seconds). |
-| =RUN_TIME_ERROR=      | The code exited with a run time error.                               |
-| =WRONG_ANSWER=        | The code's output did not match the sample output.                   |
-| =CORRECT_ANSWER= | The code's output did match the sample output.                       |
+| Status                | Description                                        |
+|-----------------------+----------------------------------------------------|
+| =COMPILE_TIME_ERROR=  | The code did not compile.                          |
+| =TIME_LIMIT_EXCEEDED= | The code did not run in the time limit             |
+| =RUN_TIME_ERROR=      | The code exited with a run time error.             |
+| =WRONG_ANSWER=        | The code's output did not match the sample output. |
+| =CORRECT_ANSWER=      | The code's output did match the sample output.     |
 
 ** Judging Algorithm
 To determine if two outputs are the same, the following algorithm is used.

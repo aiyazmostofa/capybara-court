@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -21,7 +22,7 @@ type submissionResult struct {
 }
 
 const JAVA_DIRECTORY = "/production/jdk/bin/"
-const TIMEOUT = 10
+const DEFAULT_TIMEOUT = 10
 
 func main() {
 	http.HandleFunc("/", handler)
@@ -51,7 +52,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Recieve user code
+	// Receive user code
 	var codeBytes []byte
 	var codeFileName string
 
@@ -64,7 +65,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Recieve sample input
+	// Receive sample input
 	var sampleInputBytes []byte
 	var sampleInputFileName string
 
@@ -75,7 +76,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Recieve sample output
+	// Receive sample output
 	var sampleOutputBytes []byte
 	if sampleOutputBytes, _, err = readMultipartFile(w, r, "output", true); err != nil {
 		return
@@ -83,6 +84,17 @@ func handler(w http.ResponseWriter, r *http.Request) {
 
 	sampleOutputList := strings.Split(string(sampleOutputBytes), "\n")
 	sampleOutputList = formatOutput(sampleOutputList)
+
+	// Receive timeout value
+	timeout, err := strconv.Atoi(r.FormValue("timeout"))
+	if err != nil {
+		timeout = DEFAULT_TIMEOUT
+	}
+
+	if timeout < 1 {
+		http.Error(w, "Invalid timeout setting", http.StatusBadRequest)
+		return
+	}
 
 	// Everything is now ready, add OK status
 	w.Header().Set("Content-Type", "application/json")
@@ -96,7 +108,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Run code
-	codeOutputBytes, runtimeStatus := runCode(codeFileName, directory)
+	codeOutputBytes, runtimeStatus := runCode(codeFileName, directory, timeout)
 	codeOutputList := strings.Split(string(codeOutputBytes), "\n")
 	codeOutputList = formatOutput(codeOutputList)
 
@@ -181,8 +193,8 @@ func compileCode(codeFilePath string) ([]byte, bool) {
 	return out, err == nil
 }
 
-func runCode(codeFileName string, directory string) ([]byte, string) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(TIMEOUT)*time.Second)
+func runCode(codeFileName string, directory string, timeout int) ([]byte, string) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx,
