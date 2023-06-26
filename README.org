@@ -1,11 +1,19 @@
 * Capybara Court
-A docker image that can safely run and judge the output of untrusted Java code.
+A Docker image that can safely run and judge the output of untrusted Java code.
 
-** Deploying
-To deploy this image, a Docker compose file has been provided.
-Just run:
-#+BEGIN_SRC bash
-  docker compose up -d
+** Development
+A Docker Compose file for local development has been provided in the project root directory.
+
+** Deployment
+[[https://hub.docker.com/repository/docker/aiyazmostofa/capybara-court][Docker Hub Link]]
+
+Example Docker Compose file.
+#+BEGIN_SRC yaml
+  services:
+  capybara-court:
+    image: "aiyazmostofa/capybara-court:v1"
+    ports:
+      - "8080:8080"
 #+END_SRC
 The server currently runs on =localhost:8080=.
 Google Cloud and Terraform support will be added soon.
