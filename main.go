@@ -96,6 +96,9 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Recieve returnOutput flag
+	returnOutput := r.FormValue("returnOutput") != ""
+
 	// Everything is now ready, add OK status
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -113,9 +116,17 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	codeOutputList = formatOutput(codeOutputList)
 
 	if runtimeStatus != "RUN_TIME_FINISHED" {
-		json.NewEncoder(w).Encode(submissionResult{runtimeStatus, string(compileOutputBytes), string(codeOutputBytes)})
+		if returnOutput {
+			json.NewEncoder(w).Encode(submissionResult{runtimeStatus, string(compileOutputBytes), string(codeOutputBytes)})
+		} else {
+			json.NewEncoder(w).Encode(submissionResult{Status: runtimeStatus})
+		}
 	} else {
-		json.NewEncoder(w).Encode(submissionResult{judge(codeOutputList, sampleOutputList), string(compileOutputBytes), string(codeOutputBytes)})
+		if returnOutput {
+			json.NewEncoder(w).Encode(submissionResult{judge(codeOutputList, sampleOutputList), string(compileOutputBytes), string(codeOutputBytes)})
+		} else {
+			json.NewEncoder(w).Encode(submissionResult{Status: judge(codeOutputList, sampleOutputList)})
+		}
 	}
 }
 

@@ -8,19 +8,20 @@ Google Cloud and Terraform support will be added soon.
 
 ** Usage
 Make a POST request to =/= consisting of the following multipart form:
-| Name                | Type | Description                                     |
-|---------------------+------+-------------------------------------------------|
-| =code= (required)   | file | A Java file.                                    |
-| =input=             | file | A sample input file.                            |
-| =timeout=           | int  | The timeout in seconds (default is 10 seconds). |
-| =output= (required) | file | A sample output file.                           |
+| Name                | Type   | Description                                                         |
+|---------------------+--------+---------------------------------------------------------------------|
+| =code= (required)   | file   | A Java file.                                                        |
+| =input=             | file   | A sample input file.                                                |
+| =timeout=           | int    | The timeout in seconds (default is 10 seconds).                     |
+| =returnOutput=      | string | Return both compile and runtime output if this string is not empty. |
+| =output= (required) | file   | A sample output file.                                               |
 
 If you receive a status code 200, that means the code has been judged, and you will receive a JSON object with these key-value pairs:
-| Key             | Value Type | Description                                                 |
-|-----------------+------------+-------------------------------------------------------------|
-| =status=        | string     | The judgement status (statuses described below).            |
-| =compileOutput= | string     | The output of the compiler, regardless of compiler success. |
-| =runtimeOutput= | string     | The output of the code, regardless of runtime success.      |
+| Key             | Value Type | Description                                                                                |
+|-----------------+------------+--------------------------------------------------------------------------------------------|
+| =status=        | string     | The judgement status (statuses described below).                                           |
+| =compileOutput= | string     | The output of the compiler, regardless of compiler success. (Depends on returnOutput flag) |
+| =runtimeOutput= | string     | The output of the code, regardless of runtime success. (Depends on returnOutput flag)      |
 
 Here are the possible statuses:
 | Status                | Description                                        |
