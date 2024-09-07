@@ -1,5 +1,0 @@
-services:
-  capybara-court:
-    build: .
-    ports:
-      - "8080:8080"
